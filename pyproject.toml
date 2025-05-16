@@ -1,0 +1,12 @@
+[project]
+name = "caas-automation"
+version = "0.1.0"
+description = "Automation script for CaaS platform"
+requires-python = ">=3.8"
+dependencies = [
+    "python-dotenv>=1.0.1",
+    "requests>=2.32.3",
+]
+
+
+
