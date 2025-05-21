@@ -3,10 +3,9 @@
 CaaS Task Check Script
 This script can be run directly or via cron job
 """
-import os
-import sys
+
 import logging
-from datetime import datetime
+import sys
 from src.clients.caas_client import CaaSClient
 
 # Configure logging
@@ -18,7 +17,8 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
-logger = logging.getLogger(__name__)
+
+logger = logging.getLogger()
 
 def main():
     """Main function to run the CaaS check"""
@@ -31,7 +31,7 @@ def main():
         # Login
         logger.info("Attempting to login to CaaS...")
         if not client.login():
-            logger.error("Failed to login to CaaS")
+            logger.info("Failed to login to CaaS")
             return
         
         # Get available tasks and send notifications
@@ -43,7 +43,7 @@ def main():
             logger.info("No tasks available")
             
     except Exception as e:
-        logger.error(f"Error in main: {str(e)}")
+        logger.info(f"Error in main: {str(e)}")
         raise
 
 if __name__ == "__main__":

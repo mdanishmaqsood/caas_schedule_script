@@ -57,6 +57,7 @@ class CaaSClient:
             #response.raise_for_status()
             
             data = response.json()
+            #print(data)
             if data.get('status') == 'ok':
                 logger.info("Successfully retrieved available tasks")
                 # Send notification to Mattermost
@@ -64,10 +65,10 @@ class CaaSClient:
                 return data
             elif data.get('status') == 'error':
                 self.mattermost.send_task_notification("")
-                logger.error(f"❌ No tasks available at the moment")
+                logger.info(f"[X] No tasks available at the moment")
                 return None
             else:
-                logger.error(f"Error while fetching tasks: {data}")
+                logger.info(f"Error while fetching tasks: {data}")
                 return None
                 
         except requests.exceptions.RequestException as e:
