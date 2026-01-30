@@ -4,7 +4,9 @@ CaaS API Client for automation tasks
 import json
 import logging
 import requests
-from src.config import SIGNIN_URL, AVAILABLE_TASKS_URL, CREDENTIALS, DEFAULT_HEADERS
+import time
+from datetime import datetime
+from src.config import SIGNIN_URL, AVAILABLE_TASKS_URL, START_WORK_URL, CREDENTIALS, DEFAULT_HEADERS
 from src.clients.mattermost_client import MattermostClient
 
 # Configure logging for CloudWatch
@@ -45,6 +47,72 @@ class CaaSClient:
             logger.error(f"Login error: {str(e)}")
             return False
 
+    def accept_task(self, task_id):
+        """Accept a task by its ID"""
+        if not self.access_token:
+            logger.error("Not authenticated. Please login first")
+            return False
+
+        try:
+            logger.info(f"Attempting to accept task {task_id}...")
+            
+            payload = {
+                "workId": task_id,
+                "startTimeEpochMs": int(time.time() * 1000),
+                "tzName": "Asia/Karachi"
+            }
+            
+            response = requests.post(
+                START_WORK_URL,
+                headers=self.headers,
+                data=json.dumps(payload)
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            if data.get('status') == 'ok':
+                logger.info(f"Successfully accepted task {task_id}")
+                work_token = data.get('data', {}).get('workToken')
+                if work_token:
+                    logger.info("Received work token for task")
+                return True
+            else:
+                logger.error(f"Failed to accept task: {data}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error accepting task: {str(e)}")
+            return False
+
+    def should_auto_accept(self, work):
+        """Check if a task should be auto-accepted based on time and keywords"""
+        current_time = datetime.now().time()
+        start_time = datetime.strptime("11:00", "%H:%M").time()
+        end_time = datetime.strptime("17:00", "%H:%M").time()
+        
+        if not (start_time <= current_time <= end_time):
+            logger.info(f"Outside auto-accept time window. Current time: {current_time}")
+            return False
+        
+        frontend_keywords = ["react", "next", "next.js", "figma", "frontend", "design"]
+        backend_keywords = ["django", "python", "fastapi", "backend"]
+        
+        text_to_check = (
+            f"{work.get('title', '')} "
+            f"{work.get('description', '')} "
+            f"{' '.join(work.get('skills', []))}"
+        ).lower()
+        
+        has_frontend = any(keyword.lower() in text_to_check for keyword in frontend_keywords)
+        has_backend = any(keyword.lower() in text_to_check for keyword in backend_keywords)
+        
+        if has_frontend or has_backend:
+            logger.info("Task matches auto-accept criteria (frontend or backend keywords found)")
+            return True
+        
+        logger.info("Task does not match auto-accept criteria")
+        return False
+
     def get_available_tasks_and_send_notification(self):
         """Get available tasks from CaaS and send notification"""
         if not self.access_token:
@@ -60,8 +128,34 @@ class CaaSClient:
             #print(data)
             if data.get('status') == 'ok':
                 logger.info("Successfully retrieved available tasks")
-                # Send notification to Mattermost
-                self.mattermost.send_task_notification(data)
+                
+                work = data.get("data", {}).get("work")
+                if work:
+                    task_id = work.get('id')
+                    
+                    self.mattermost.log_task_to_history(work)
+                    
+                    last_task_id = self.mattermost.get_last_task_id()
+                    is_already_accepted = self.mattermost.get_accepted_task_status()
+                    
+                    if last_task_id == task_id and is_already_accepted:
+                        logger.info(f"Task {task_id} is already accepted, waiting for completion...")
+                        return data
+                    
+                    if self.should_auto_accept(work):
+                        logger.info(f"Task {task_id} qualifies for auto-acceptance")
+                        
+                        if self.accept_task(task_id):
+                            logger.info(f"Successfully accepted task {task_id}, sending notification...")
+                            self.mattermost.send_task_accepted_notification(data)
+                            return data
+                        else:
+                            logger.error("Failed to auto-accept task, no notification sent")
+                            return data
+                    else:
+                        logger.info("Task does not qualify for auto-acceptance, no notification sent")
+                        return data
+                
                 return data
             elif data.get('status') == 'error':
                 self.mattermost.send_task_notification("")

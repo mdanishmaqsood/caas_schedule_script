@@ -11,6 +11,7 @@ load_dotenv()
 BASE_URL = os.getenv('CAAS_BASE_URL', "https://prod.bh.caas.ai/backend/api/v1")
 SIGNIN_URL = f"{BASE_URL}/signin"
 AVAILABLE_TASKS_URL = f"{BASE_URL}/work/available"
+START_WORK_URL = f"{BASE_URL}/work/start"
 
 # User credentials
 CREDENTIALS = {
