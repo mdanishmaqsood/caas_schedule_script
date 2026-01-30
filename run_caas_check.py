@@ -6,7 +6,7 @@ This script can be run directly or via cron job
 
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from src.clients.caas_client import CaaSClient
 
 # Configure logging
@@ -42,9 +42,9 @@ def main():
             logger.info("Successfully checked for tasks and sent notifications")
         else:
             logger.info("No tasks available")
-        
-        current_hour = datetime.now().hour
-        if current_hour == 18:
+
+        current_hour = datetime.now(timezone.utc).hour
+        if current_hour == 13:
             logger.info("Attempting to send daily summary...")
             client.mattermost.send_daily_summary()
             

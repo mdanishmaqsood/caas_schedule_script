@@ -6,7 +6,7 @@ import json
 import logging
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from src.config import MATTERMOST_CONFIG
 from .task_history import TaskHistory
 from .notification_formatter import format_task_message, format_daily_summary
@@ -153,7 +153,12 @@ class MattermostClient:
         
         total_tasks = sum(len(tasks) for tasks in summary.values())
         if total_tasks == 0:
-            logger.info("No tasks in last 24 hours")
+            message = "📊 **Daily Task Summary (Last 24 Hours)**\n\n✅ No tasks were received in the last 24 hours.\n\n_All clear!_"
+            if self.send_message(message):
+                self.mark_daily_summary_sent()
+                logger.info("Daily summary sent: No tasks in last 24 hours")
+                self.task_history.cleanup_old_tasks()
+                return True
             return False
         
         if self.send_message(format_daily_summary(summary)):
@@ -166,7 +171,7 @@ class MattermostClient:
     def should_send_daily_summary(self):
         """Check if daily summary should be sent (once per day)"""
         try:
-            today = datetime.now().date().isoformat()
+            today = datetime.now(timezone.utc).date().isoformat()
             if os.path.exists(self.daily_summary_file):
                 with open(self.daily_summary_file, "r") as f:
                     return json.load(f).get('last_summary_date') != today
@@ -180,6 +185,6 @@ class MattermostClient:
         try:
             os.makedirs(os.path.dirname(self.daily_summary_file), exist_ok=True)
             with open(self.daily_summary_file, "w") as f:
-                json.dump({"last_summary_date": datetime.now().date().isoformat()}, f)
+                json.dump({"last_summary_date": datetime.now(timezone.utc).date().isoformat()}, f)
         except Exception as e:
             logger.error(f"Error marking daily summary as sent: {str(e)}")

@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from .task_classifier import get_task_stack_type, get_qa_tech_stack
 
 logger = logging.getLogger()
@@ -21,7 +21,7 @@ class TaskHistory:
                 "task_id": task_id,
                 "title": work.get('title', 'N/A'),
                 "stack_type": stack_type,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "priority": work.get('priority', 'N/A'),
                 "skills": work.get('skills', []),
                 "qa_tech_stack": get_qa_tech_stack(work) if stack_type == "qa" else None

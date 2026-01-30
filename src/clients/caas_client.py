@@ -5,7 +5,7 @@ import json
 import logging
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from src.config import SIGNIN_URL, AVAILABLE_TASKS_URL, START_WORK_URL, CREDENTIALS, DEFAULT_HEADERS
 from src.clients.mattermost_client import MattermostClient
 
@@ -86,9 +86,10 @@ class CaaSClient:
 
     def should_auto_accept(self, work):
         """Check if a task should be auto-accepted based on time and keywords"""
-        current_time = datetime.now().time()
-        start_time = datetime.strptime("11:00", "%H:%M").time()
-        end_time = datetime.strptime("17:00", "%H:%M").time()
+        # Server runs in UTC, so 06:00-12:00 UTC = 11:00-17:00 PKT
+        current_time = datetime.now(timezone.utc).time()
+        start_time = datetime.strptime("06:00", "%H:%M").time()
+        end_time = datetime.strptime("12:00", "%H:%M").time()
         
         if not (start_time <= current_time <= end_time):
             logger.info(f"Outside auto-accept time window. Current time: {current_time}")

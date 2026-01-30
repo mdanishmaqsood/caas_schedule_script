@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from .task_classifier import get_tags_for_task
 
 def format_task_message(work, task_id, is_accepted=False):
@@ -34,6 +34,6 @@ def format_daily_summary(summary):
                 message += f"  • [{task_time}] Task #{task['task_id']}: {task_title}...{qa_info}\n"
             message += "\n"
     
-    message += f"_Generated on {datetime.now().strftime('%Y-%m-%d at %I:%M %p')}_"
+    message += f"_Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d at %I:%M %p')} UTC_"
     
     return message
