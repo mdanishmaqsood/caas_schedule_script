@@ -29,21 +29,28 @@ class TaskHistory:
             
             history = []
             if os.path.exists(self.history_file):
-                with open(self.history_file, "r") as f:
-                    content = f.read().strip()
-                    if content:
-                        history = json.loads(content)
+                try:
+                    with open(self.history_file, "r") as f:
+                        content = f.read().strip()
+                        if content:
+                            history = json.loads(content)
+                except (json.JSONDecodeError, ValueError):
+                    logger.warning("Task history file corrupted, starting fresh")
+                    history = []
             
             if not any(t.get('task_id') == task_id for t in history):
                 history.append(task_data)
                 os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-                with open(self.history_file, "w") as f:
+                # Write to temporary file first, then rename for atomic operation
+                temp_file = self.history_file + ".tmp"
+                with open(temp_file, "w") as f:
                     json.dump(history, f, indent=2)
+                if os.path.exists(self.history_file):
+                    os.remove(self.history_file)
+                os.rename(temp_file, self.history_file)
                 logger.info(f"Task {task_id} logged as {stack_type} stack")
             else:
                 logger.info(f"Task {task_id} already in history")
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"JSON parsing error in task_history.json: {str(e)}")
         except Exception as e:
             logger.error(f"Error logging task: {str(e)}")
     

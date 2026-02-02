@@ -77,16 +77,16 @@ class MattermostClient:
     def get_last_task_id(self):
         """Get the last task ID from the storage file"""
         try:
-            if os.path.exists(self.last_task_file):
-                with open(self.last_task_file, "r") as f:
-                    content = f.read().strip()
-                    if not content:
-                        return None
-                    data = json.loads(content)
-                    return data.get("last_task_id")
-            return None
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"JSON parsing error in last_task.json, file may be corrupted: {str(e)}")
+            if not os.path.exists(self.last_task_file) or os.path.getsize(self.last_task_file) == 0:
+                return None
+            with open(self.last_task_file, "r") as f:
+                content = f.read().strip()
+                if not content:
+                    return None
+                data = json.loads(content)
+                return data.get("last_task_id")
+        except (json.JSONDecodeError, ValueError):
+            # File is corrupted, return None silently
             return None
         except Exception as e:
             logger.error(f"Error reading last task ID: {str(e)}")
@@ -96,23 +96,30 @@ class MattermostClient:
         """Save the last task ID to the storage file"""
         try:
             os.makedirs(os.path.dirname(self.last_task_file), exist_ok=True)
-            with open(self.last_task_file, "w") as f:
+            # Write to temporary file first, then rename for atomic operation
+            temp_file = self.last_task_file + ".tmp"
+            with open(temp_file, "w") as f:
                 json.dump({"last_task_id": task_id, "accepted": accepted, "cancelled": cancelled}, f)
+            # Atomic rename
+            if os.path.exists(self.last_task_file):
+                os.remove(self.last_task_file)
+            os.rename(temp_file, self.last_task_file)
         except Exception as e:
             logger.error(f"Error saving last task ID: {str(e)}")
     
     def get_accepted_task_status(self):
         """Get the accepted status of the last task"""
         try:
-            if os.path.exists(self.last_task_file):
-                with open(self.last_task_file, "r") as f:
-                    content = f.read().strip()
-                    if not content:
-                        return False
-                    data = json.loads(content)
-                    return data.get("accepted", False)
-            return False
+            if not os.path.exists(self.last_task_file) or os.path.getsize(self.last_task_file) == 0:
+                return False
+            with open(self.last_task_file, "r") as f:
+                content = f.read().strip()
+                if not content:
+                    return False
+                data = json.loads(content)
+                return data.get("accepted", False)
         except (json.JSONDecodeError, ValueError):
+            # File is corrupted, return False silently
             return False
         except Exception as e:
             logger.error(f"Error reading accepted status: {str(e)}")
@@ -121,15 +128,16 @@ class MattermostClient:
     def get_cancelled_task_status(self):
         """Check if the last task was manually cancelled"""
         try:
-            if os.path.exists(self.last_task_file):
-                with open(self.last_task_file, "r") as f:
-                    content = f.read().strip()
-                    if not content:
-                        return False
-                    data = json.loads(content)
-                    return data.get("cancelled", False)
-            return False
+            if not os.path.exists(self.last_task_file) or os.path.getsize(self.last_task_file) == 0:
+                return False
+            with open(self.last_task_file, "r") as f:
+                content = f.read().strip()
+                if not content:
+                    return False
+                data = json.loads(content)
+                return data.get("cancelled", False)
         except (json.JSONDecodeError, ValueError):
+            # File is corrupted, return False silently
             return False
         except Exception as e:
             logger.error(f"Error reading cancelled status: {str(e)}")
