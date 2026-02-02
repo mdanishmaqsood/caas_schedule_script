@@ -95,6 +95,9 @@ class CaaSClient:
             logger.info(f"Outside auto-accept time window. Current time: {current_time}")
             return False
         
+        # Keywords to reject - React Native and mobile development
+        reject_keywords = ["react_native", "react native", "mobile", "android", "ios", "flutter", "kotlin", "swift"]
+        
         frontend_keywords = ["react", "next", "next.js", "figma", "frontend", "design"]
         backend_keywords = ["django", "python", "fastapi", "backend"]
         
@@ -103,6 +106,12 @@ class CaaSClient:
             f"{work.get('description', '')} "
             f"{' '.join(work.get('skills', []))}"
         ).lower()
+        
+        # First check if task contains any reject keywords
+        has_reject_keywords = any(keyword.lower() in text_to_check for keyword in reject_keywords)
+        if has_reject_keywords:
+            logger.info("Task rejected: Contains React Native or mobile development keywords")
+            return False
         
         has_frontend = any(keyword.lower() in text_to_check for keyword in frontend_keywords)
         has_backend = any(keyword.lower() in text_to_check for keyword in backend_keywords)
@@ -138,9 +147,17 @@ class CaaSClient:
                     
                     last_task_id = self.mattermost.get_last_task_id()
                     is_already_accepted = self.mattermost.get_accepted_task_status()
+                    was_cancelled = self.mattermost.get_cancelled_task_status()
                     
+                    # If same task reappears after being accepted, it was manually cancelled
                     if last_task_id == task_id and is_already_accepted:
-                        logger.info(f"Task {task_id} is already accepted, waiting for completion...")
+                        logger.info(f"Task {task_id} was previously accepted but now available again - marking as cancelled")
+                        self.mattermost.mark_task_as_cancelled(task_id)
+                        return data
+                    
+                    # Don't auto-accept tasks that were manually cancelled
+                    if last_task_id == task_id and was_cancelled:
+                        logger.info(f"Task {task_id} was manually cancelled, will not auto-accept again")
                         return data
                     
                     if self.should_auto_accept(work):
@@ -152,6 +169,8 @@ class CaaSClient:
                             return data
                         else:
                             logger.error("Failed to auto-accept task, no notification sent")
+                            # Mark as cancelled since auto-accept failed
+                            self.mattermost.mark_task_as_cancelled(task_id)
                             return data
                     else:
                         logger.info("Task does not qualify for auto-acceptance, no notification sent")

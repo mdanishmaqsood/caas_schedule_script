@@ -86,12 +86,12 @@ class MattermostClient:
             logger.error(f"Error reading last task ID: {str(e)}")
             return None
 
-    def save_last_task_id(self, task_id, accepted=False):
+    def save_last_task_id(self, task_id, accepted=False, cancelled=False):
         """Save the last task ID to the storage file"""
         try:
             os.makedirs(os.path.dirname(self.last_task_file), exist_ok=True)
             with open(self.last_task_file, "w") as f:
-                json.dump({"last_task_id": task_id, "accepted": accepted}, f)
+                json.dump({"last_task_id": task_id, "accepted": accepted, "cancelled": cancelled}, f)
         except Exception as e:
             logger.error(f"Error saving last task ID: {str(e)}")
     
@@ -106,6 +106,26 @@ class MattermostClient:
         except Exception as e:
             logger.error(f"Error reading accepted status: {str(e)}")
             return False
+    
+    def get_cancelled_task_status(self):
+        """Check if the last task was manually cancelled"""
+        try:
+            if os.path.exists(self.last_task_file):
+                with open(self.last_task_file, "r") as f:
+                    data = json.load(f)
+                    return data.get("cancelled", False)
+            return False
+        except Exception as e:
+            logger.error(f"Error reading cancelled status: {str(e)}")
+            return False
+    
+    def mark_task_as_cancelled(self, task_id):
+        """Mark a task as manually cancelled to prevent re-acceptance"""
+        try:
+            self.save_last_task_id(task_id, accepted=False, cancelled=True)
+            logger.info(f"Task {task_id} marked as cancelled")
+        except Exception as e:
+            logger.error(f"Error marking task as cancelled: {str(e)}")
 
     def log_task_to_history(self, work):
         """Log a task to the history file"""

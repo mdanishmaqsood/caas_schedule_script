@@ -68,10 +68,15 @@ def get_tags_for_task(work):
     has_android = _has_keywords(text, ANDROID_KEYWORDS)
     has_qa = _has_keywords(text, QA_KEYWORDS)
     
-    if has_android and not has_frontend and not has_backend and not has_qa:
-        return "@sohaib54975"
-    elif has_frontend and not has_backend and not has_qa and not has_android:
-        return "@sohaib54975"
-    elif has_backend and not has_frontend and not has_qa and not has_android:
+    # Reject Android/React Native tasks - don't assign to anyone
+    if has_android:
+        return "⚠️ **IGNORED: Android/React Native Task**"
+    # Backend-only tasks → Abdullah only
+    elif has_backend and not has_frontend:
         return "@abdullahnaeemgill1724"
-    return "@sohaib54975 @abdullahnaeemgill1724"
+    # Frontend or QA tasks → Sohaib only
+    elif has_frontend or has_qa:
+        return "@sohaib54975"
+    # Mixed or unknown → Both
+    else:
+        return "@sohaib54975 @abdullahnaeemgill1724"
