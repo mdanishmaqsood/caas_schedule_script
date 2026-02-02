@@ -60,9 +60,12 @@ class TaskHistory:
                 return None
             
             with open(self.history_file, "r") as f:
-                history = json.load(f)
+                content = f.read().strip()
+                if not content:
+                    return None
+                history = json.loads(content)
             
-            cutoff_time = datetime.now() - timedelta(hours=24)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
             recent_tasks = [t for t in history if datetime.fromisoformat(t['timestamp']) >= cutoff_time]
             
             summary = {"frontend": [], "backend": [], "android": [], "qa": [], "mixed": [], "other": []}
@@ -81,9 +84,12 @@ class TaskHistory:
                 return
             
             with open(self.history_file, "r") as f:
-                history = json.load(f)
+                content = f.read().strip()
+                if not content:
+                    return
+                history = json.loads(content)
             
-            cutoff_time = datetime.now() - timedelta(hours=24)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
             recent_tasks = [t for t in history if datetime.fromisoformat(t['timestamp']) >= cutoff_time]
             deleted_count = len(history) - len(recent_tasks)
             
