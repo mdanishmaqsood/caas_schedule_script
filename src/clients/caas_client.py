@@ -84,6 +84,18 @@ class CaaSClient:
             logger.error(f"Error accepting task: {str(e)}")
             return False
 
+    def is_react_native_or_mobile_task(self, work):
+        """Check if task is related to React Native, Android, or mobile development"""
+        reject_keywords = ["react_native", "react native", "mobile", "android", "ios", "flutter", "kotlin", "swift"]
+        
+        text_to_check = (
+            f"{work.get('title', '')} "
+            f"{work.get('description', '')} "
+            f"{' '.join(work.get('skills', []))}"
+        ).lower()
+        
+        return any(keyword.lower() in text_to_check for keyword in reject_keywords)
+
     def should_auto_accept(self, work):
         """Check if a task should be auto-accepted based on time and keywords"""
         # Server runs in UTC, so 06:00-12:00 UTC = 11:00-17:00 PKT
@@ -95,8 +107,10 @@ class CaaSClient:
             logger.info(f"Outside auto-accept time window. Current time: {current_time}")
             return False
         
-        # Keywords to reject - React Native and mobile development
-        reject_keywords = ["react_native", "react native", "mobile", "android", "ios", "flutter", "kotlin", "swift"]
+        # Reject React Native and mobile development tasks
+        if self.is_react_native_or_mobile_task(work):
+            logger.info("Task rejected: Contains React Native or mobile development keywords")
+            return False
         
         frontend_keywords = ["react", "next", "next.js", "figma", "frontend", "design"]
         backend_keywords = ["django", "python", "fastapi", "backend"]
@@ -106,12 +120,6 @@ class CaaSClient:
             f"{work.get('description', '')} "
             f"{' '.join(work.get('skills', []))}"
         ).lower()
-        
-        # First check if task contains any reject keywords
-        has_reject_keywords = any(keyword.lower() in text_to_check for keyword in reject_keywords)
-        if has_reject_keywords:
-            logger.info("Task rejected: Contains React Native or mobile development keywords")
-            return False
         
         has_frontend = any(keyword.lower() in text_to_check for keyword in frontend_keywords)
         has_backend = any(keyword.lower() in text_to_check for keyword in backend_keywords)
@@ -158,6 +166,14 @@ class CaaSClient:
                     # Don't auto-accept tasks that were manually cancelled
                     if last_task_id == task_id and was_cancelled:
                         logger.info(f"Task {task_id} was manually cancelled, will not auto-accept again")
+                        return data
+                    
+                    # Check if it's a React Native/Android/mobile task
+                    if self.is_react_native_or_mobile_task(work):
+                        logger.info(f"Task {task_id} is React Native/Android/mobile related - sending notification only")
+                        # Send notification but don't auto-accept
+                        if last_task_id != task_id:
+                            self.mattermost.send_task_notification(data)
                         return data
                     
                     if self.should_auto_accept(work):

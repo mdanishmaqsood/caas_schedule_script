@@ -79,8 +79,14 @@ class MattermostClient:
         try:
             if os.path.exists(self.last_task_file):
                 with open(self.last_task_file, "r") as f:
-                    data = json.load(f)
+                    content = f.read().strip()
+                    if not content:
+                        return None
+                    data = json.loads(content)
                     return data.get("last_task_id")
+            return None
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"JSON parsing error in last_task.json, file may be corrupted: {str(e)}")
             return None
         except Exception as e:
             logger.error(f"Error reading last task ID: {str(e)}")
@@ -100,8 +106,13 @@ class MattermostClient:
         try:
             if os.path.exists(self.last_task_file):
                 with open(self.last_task_file, "r") as f:
-                    data = json.load(f)
+                    content = f.read().strip()
+                    if not content:
+                        return False
+                    data = json.loads(content)
                     return data.get("accepted", False)
+            return False
+        except (json.JSONDecodeError, ValueError):
             return False
         except Exception as e:
             logger.error(f"Error reading accepted status: {str(e)}")
@@ -112,8 +123,13 @@ class MattermostClient:
         try:
             if os.path.exists(self.last_task_file):
                 with open(self.last_task_file, "r") as f:
-                    data = json.load(f)
+                    content = f.read().strip()
+                    if not content:
+                        return False
+                    data = json.loads(content)
                     return data.get("cancelled", False)
+            return False
+        except (json.JSONDecodeError, ValueError):
             return False
         except Exception as e:
             logger.error(f"Error reading cancelled status: {str(e)}")

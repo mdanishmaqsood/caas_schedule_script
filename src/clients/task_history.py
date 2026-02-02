@@ -30,7 +30,9 @@ class TaskHistory:
             history = []
             if os.path.exists(self.history_file):
                 with open(self.history_file, "r") as f:
-                    history = json.load(f)
+                    content = f.read().strip()
+                    if content:
+                        history = json.loads(content)
             
             if not any(t.get('task_id') == task_id for t in history):
                 history.append(task_data)
@@ -40,6 +42,8 @@ class TaskHistory:
                 logger.info(f"Task {task_id} logged as {stack_type} stack")
             else:
                 logger.info(f"Task {task_id} already in history")
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"JSON parsing error in task_history.json: {str(e)}")
         except Exception as e:
             logger.error(f"Error logging task: {str(e)}")
     
