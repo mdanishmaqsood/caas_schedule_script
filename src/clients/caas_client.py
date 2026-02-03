@@ -151,49 +151,41 @@ class CaaSClient:
                 if work:
                     task_id = work.get('id')
                     
-                    self.mattermost.log_task_to_history(work)
-                    
                     last_task_id = self.mattermost.get_last_task_id()
                     is_already_accepted = self.mattermost.get_accepted_task_status()
                     was_cancelled = self.mattermost.get_cancelled_task_status()
-                    
+
                     # If same task reappears after being accepted, it was manually cancelled
                     if last_task_id == task_id and is_already_accepted:
                         logger.info(f"Task {task_id} was previously accepted but now available again - marking as cancelled")
                         self.mattermost.mark_task_as_cancelled(task_id)
                         return data
-                    
+
                     # Don't auto-accept tasks that were manually cancelled
                     if last_task_id == task_id and was_cancelled:
                         logger.info(f"Task {task_id} was manually cancelled, will not auto-accept again")
                         return data
-                    
-                    # Check if it's a React Native/Android/mobile task
-                    if self.is_react_native_or_mobile_task(work):
-                        logger.info(f"Task {task_id} is React Native/Android/mobile related - sending notification only")
-                        # Send notification but don't auto-accept
-                        if last_task_id != task_id:
-                            self.mattermost.send_task_notification(data)
+
+                    # Always send a notification once per task, regardless of stack or criteria
+                    if self.mattermost.has_task_been_notified(task_id):
+                        logger.info(f"Task {task_id} already notified, skipping")
                         return data
-                    
+
+                    # Send notification regardless of auto-accept criteria
+                    logger.info(f"Sending notification for task {task_id}")
+                    self.mattermost.send_task_notification(data)
+
+                    # Try to auto-accept if criteria are met
                     if self.should_auto_accept(work):
                         logger.info(f"Task {task_id} qualifies for auto-acceptance")
-                        
                         if self.accept_task(task_id):
-                            logger.info(f"Successfully accepted task {task_id}, sending notification...")
-                            self.mattermost.send_task_accepted_notification(data)
-                            return data
+                            logger.info(f"Successfully accepted task {task_id}")
                         else:
-                            logger.error("Failed to auto-accept task, no notification sent")
-                            # Mark as cancelled since auto-accept failed
-                            self.mattermost.mark_task_as_cancelled(task_id)
-                            return data
+                            logger.error("Failed to auto-accept task")
                     else:
-                        logger.info("Task does not qualify for auto-acceptance, sending notification")
-                        # Send notification for tasks that don't match auto-accept criteria
-                        if last_task_id != task_id:
-                            self.mattermost.send_task_notification(data)
-                        return data
+                        logger.info("Task does not qualify for auto-acceptance")
+                    
+                    return data
                 
                 return data
             elif data.get('status') == 'error':

@@ -27,7 +27,7 @@ class MattermostClient:
         try:
             os.makedirs("src/data", exist_ok=True)
             files = {
-                self.last_task_file: {"last_task_id": None, "accepted": False},
+                self.last_task_file: {"last_task_id": None, "accepted": False, "cancelled": False},
                 self.task_history.history_file: [],
                 self.daily_summary_file: {"last_summary_date": None}
             }
@@ -155,6 +155,10 @@ class MattermostClient:
         """Log a task to the history file"""
         self.task_history.log_task(work)
 
+    def has_task_been_notified(self, task_id):
+        """Check if a task notification has already been sent"""
+        return self.task_history.has_task(task_id)
+
     def send_task_notification(self, tasks):
         """Send a formatted notification about available tasks"""
         if not tasks or not tasks.get("data", {}).get("work"):
@@ -162,14 +166,13 @@ class MattermostClient:
 
         work = tasks["data"]["work"]
         task_id = work.get("id")
-        last_task_id = self.get_last_task_id()
-        
-        if last_task_id == task_id:
-            logger.info(f"Same task {task_id}, skipping notification")
+        if self.has_task_been_notified(task_id):
+            logger.info(f"Task {task_id} already notified, skipping")
             return
 
         if self.send_message(format_task_message(work, task_id)):
             self.save_last_task_id(task_id, accepted=False)
+            self.log_task_to_history(work)
             logger.info(f"Task {task_id} notification sent")
 
     def send_task_accepted_notification(self, tasks):
@@ -179,9 +182,13 @@ class MattermostClient:
 
         work = tasks["data"]["work"]
         task_id = work.get("id")
+        if self.has_task_been_notified(task_id):
+            logger.info(f"Task {task_id} already notified, skipping accepted notification")
+            return
 
         if self.send_message(format_task_message(work, task_id, is_accepted=True)):
             self.save_last_task_id(task_id, accepted=True)
+            self.log_task_to_history(work)
             logger.info(f"Task {task_id} marked as accepted and notification sent")
 
     def send_daily_summary(self):
@@ -201,14 +208,14 @@ class MattermostClient:
             if self.send_message(message):
                 self.mark_daily_summary_sent()
                 logger.info("Daily summary sent: No tasks in last 24 hours")
-                self.task_history.cleanup_old_tasks()
+                self._cleanup_json_files_after_summary()
                 return True
             return False
         
         if self.send_message(format_daily_summary(summary)):
             self.mark_daily_summary_sent()
             logger.info("Daily summary sent successfully")
-            self.task_history.cleanup_old_tasks()
+            self._cleanup_json_files_after_summary()
             return True
         return False
 
@@ -232,3 +239,23 @@ class MattermostClient:
                 json.dump({"last_summary_date": datetime.now(timezone.utc).date().isoformat()}, f)
         except Exception as e:
             logger.error(f"Error marking daily summary as sent: {str(e)}")
+
+    def _cleanup_json_files_after_summary(self):
+        """Cleanup all JSON files after daily summary is sent"""
+        try:
+            os.makedirs("src/data", exist_ok=True)
+
+            # Reset last task tracking
+            with open(self.last_task_file, "w") as f:
+                json.dump({"last_task_id": None, "accepted": False, "cancelled": False}, f)
+
+            # Clear task history
+            self.task_history.clear_history()
+
+            # Keep last summary date to prevent duplicate summaries
+            with open(self.daily_summary_file, "w") as f:
+                json.dump({"last_summary_date": datetime.now(timezone.utc).date().isoformat()}, f)
+
+            logger.info("Cleaned up JSON files after daily summary")
+        except Exception as e:
+            logger.error(f"Error cleaning JSON files after summary: {str(e)}")
