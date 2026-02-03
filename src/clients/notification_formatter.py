@@ -24,14 +24,15 @@ def format_daily_summary(summary):
     
     message = f"📊 **Daily Task Summary (Last 24 Hours)**\n\n**Total Tasks:** {total_tasks}\n\n"
     
-    for stack_type, tasks in summary.items():
+    # Only show FRONTEND and BACKEND categories (in that order)
+    for stack_type in ['frontend', 'backend']:
+        tasks = summary.get(stack_type, [])
         if tasks:
             message += f"**{stack_type.upper()} ({len(tasks)} tasks)**\n"
             for task in tasks:
                 task_time = datetime.fromisoformat(task['timestamp']).strftime('%I:%M %p')
                 task_title = task['title'][:50]
-                qa_info = f" [*{task.get('qa_tech_stack', '').upper()} related*]" if stack_type == "qa" and task.get('qa_tech_stack') else ""
-                message += f"  • [{task_time}] Task #{task['task_id']}: {task_title}...{qa_info}\n"
+                message += f"  • [{task_time}] Task #{task['task_id']}: {task_title}...\n"
             message += "\n"
     
     message += f"_Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d at %I:%M %p')} UTC_"
