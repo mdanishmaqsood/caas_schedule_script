@@ -189,7 +189,10 @@ class CaaSClient:
                             self.mattermost.mark_task_as_cancelled(task_id)
                             return data
                     else:
-                        logger.info("Task does not qualify for auto-acceptance, no notification sent")
+                        logger.info("Task does not qualify for auto-acceptance, sending notification")
+                        # Send notification for tasks that don't match auto-accept criteria
+                        if last_task_id != task_id:
+                            self.mattermost.send_task_notification(data)
                         return data
                 
                 return data

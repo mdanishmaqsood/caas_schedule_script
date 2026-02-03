@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from .task_classifier import get_task_stack_type, get_qa_tech_stack
+from .task_classifier import get_task_stack_type
 
 logger = logging.getLogger()
 
@@ -23,8 +23,7 @@ class TaskHistory:
                 "stack_type": stack_type,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "priority": work.get('priority', 'N/A'),
-                "skills": work.get('skills', []),
-                "qa_tech_stack": get_qa_tech_stack(work) if stack_type == "qa" else None
+                "skills": work.get('skills', [])
             }
             
             history = []
@@ -68,9 +67,14 @@ class TaskHistory:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
             recent_tasks = [t for t in history if datetime.fromisoformat(t['timestamp']) >= cutoff_time]
             
-            summary = {"frontend": [], "backend": [], "android": [], "qa": [], "mixed": [], "other": []}
+            summary = {"frontend": [], "backend": []}
             for task in recent_tasks:
-                summary[task.get('stack_type', 'other')].append(task)
+                stack_type = task.get('stack_type', 'frontend')
+                # Map old stack types to new ones if they exist
+                if stack_type in ['qa', 'mixed', 'android', 'other']:
+                    stack_type = 'frontend'
+                if stack_type in summary:
+                    summary[stack_type].append(task)
             
             return summary
         except Exception as e:
