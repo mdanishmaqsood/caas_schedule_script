@@ -1,12 +1,11 @@
 FRONTEND_KEYWORDS = [
     "react", "next", "next.js", "figma", "frontend", 
-    "design", "ui", "ux", "css", "html", "javascript", "typescript", 
+    "design", "ui", "ux", "javascript", "typescript", 
     "vue", "angular"
 ]
 
 BACKEND_KEYWORDS = [
-    "django", "python", "fastapi", "backend", "api", "database", 
-    "sql", "postgres", "mongodb", "flask", "node", "express"
+    "django", "python", "fastapi", "backend", "flask"
 ]
 
 ANDROID_KEYWORDS = [
@@ -18,70 +17,89 @@ QA_KEYWORDS = [
 ]
 
 
-def _get_task_text(work):
-    """Extract searchable text from task"""
+def _get_skills_text(work):
+    """Extract skills from task and convert to lowercase"""
+    skills = work.get('skills', [])
+    return [skill.lower() for skill in skills]
+
+
+def _get_full_task_text(work):
+    """Extract searchable text from entire task (title, description, skills)"""
     return f"{work.get('title', '')} {work.get('description', '')} {' '.join(work.get('skills', []))}".lower()
 
 
-def _has_keywords(text, keywords):
+def _has_keywords_in_skills(skills, keywords):
+    """Check if skills contain any of the keywords"""
+    return any(kw.lower() in skills for kw in keywords)
+
+
+def _has_keywords_in_text(text, keywords):
     """Check if text contains any of the keywords"""
     return any(kw.lower() in text for kw in keywords)
 
 
 def get_task_stack_type(work):
-    """Classify task as frontend or backend only"""
-    text = _get_task_text(work)
-    has_frontend = _has_keywords(text, FRONTEND_KEYWORDS)
-    has_backend = _has_keywords(text, BACKEND_KEYWORDS)
-    has_android = _has_keywords(text, ANDROID_KEYWORDS)
+    """Classify task into frontend, backend, android, or qa stack based on skills"""
+    skills = _get_skills_text(work)
+    has_frontend = _has_keywords_in_skills(skills, FRONTEND_KEYWORDS)
+    has_backend = _has_keywords_in_skills(skills, BACKEND_KEYWORDS)
+    has_android = _has_keywords_in_skills(skills, ANDROID_KEYWORDS)
+    has_qa = _has_keywords_in_skills(skills, QA_KEYWORDS)
     
-    # Android/React Native tasks should be filtered out already, but if they appear, classify as frontend
     if has_android:
-        return "frontend"
+        return "android"
     
-    # If task has both frontend and backend keywords, determine dominant stack
-    if has_frontend and has_backend:
-        # Count keyword matches to determine which is dominant
-        frontend_count = sum(1 for kw in FRONTEND_KEYWORDS if kw.lower() in text)
-        backend_count = sum(1 for kw in BACKEND_KEYWORDS if kw.lower() in text)
-        return "backend" if backend_count > frontend_count else "frontend"
-    
-    # Backend tasks (including backend QA)
     if has_backend:
         return "backend"
     
-    # Frontend tasks (including frontend QA and general QA)
     if has_frontend:
         return "frontend"
     
-    # Default: if no clear match, classify as frontend (most QA tasks are frontend)
+    if has_qa and not has_backend and not has_frontend:
+        return "qa"
+    
+    if has_qa:
+        full_text = _get_full_task_text(work)
+        has_frontend_in_text = _has_keywords_in_text(full_text, FRONTEND_KEYWORDS)
+        has_backend_in_text = _has_keywords_in_text(full_text, BACKEND_KEYWORDS)
+        
+        if has_backend_in_text:
+            return "backend"
+        
+        if has_frontend_in_text:
+            return "frontend"
+        
+        return "qa"
+    
     return "frontend"
 
 
 def get_tags_for_task(work):
-    """Determine who to tag for a task"""
-    text = _get_task_text(work)
-    has_frontend = _has_keywords(text, FRONTEND_KEYWORDS)
-    has_backend = _has_keywords(text, BACKEND_KEYWORDS)
-    has_android = _has_keywords(text, ANDROID_KEYWORDS)
+    """Determine who to tag for a task based on skills, with fallback to full text only for pure QA tasks"""
+    skills = _get_skills_text(work)
+    has_frontend = _has_keywords_in_skills(skills, FRONTEND_KEYWORDS)
+    has_backend = _has_keywords_in_skills(skills, BACKEND_KEYWORDS)
+    has_android = _has_keywords_in_skills(skills, ANDROID_KEYWORDS)
+    has_qa = _has_keywords_in_skills(skills, QA_KEYWORDS)
     
-    # Android/React Native tasks - mark as ignored
     if has_android:
         return "⚠️ **IGNORED: Android/React Native Task**"
     
-    # Backend tasks → Abdullah only
-    if has_backend and not has_frontend:
+    if has_backend:
         return "@abdullahnaeemgill1724"
     
-    # Frontend tasks (includes QA, design, etc.) → Sohaib only
     if has_frontend:
         return "@sohaib54975"
     
-    # If both or neither, count keyword matches to determine dominant stack
-    if has_backend:
-        frontend_count = sum(1 for kw in FRONTEND_KEYWORDS if kw.lower() in text)
-        backend_count = sum(1 for kw in BACKEND_KEYWORDS if kw.lower() in text)
-        return "@abdullahnaeemgill1724" if backend_count > frontend_count else "@sohaib54975"
+    if has_qa and not has_backend and not has_frontend:
+        full_text = _get_full_task_text(work)
+        has_frontend_in_text = _has_keywords_in_text(full_text, FRONTEND_KEYWORDS)
+        has_backend_in_text = _has_keywords_in_text(full_text, BACKEND_KEYWORDS)
+        
+        if has_backend_in_text:
+            return "@abdullahnaeemgill1724"
+        
+        if has_frontend_in_text:
+            return "@sohaib54975"
     
-    # Default to Sohaib for unclear tasks
-    return "@sohaib54975"
+    return "@abdullahnaeemgill1724 @sohaib54975"

@@ -24,11 +24,17 @@ def format_daily_summary(summary):
     
     message = f"📊 **Daily Task Summary (Last 24 Hours)**\n\n**Total Tasks:** {total_tasks}\n\n"
     
-    # Only show FRONTEND and BACKEND categories (in that order)
-    for stack_type in ['frontend', 'backend']:
+    for stack_type in ['frontend', 'backend', 'android', 'qa']:
         tasks = summary.get(stack_type, [])
         if tasks:
-            message += f"**{stack_type.upper()} ({len(tasks)} tasks)**\n"
+            stack_emoji = {
+                'frontend': '🎨',
+                'backend': '⚙️',
+                'android': '📱',
+                'qa': '🧪'
+            }.get(stack_type, '📌')
+            
+            message += f"{stack_emoji} **{stack_type.upper()} ({len(tasks)} tasks)**\n"
             for task in tasks:
                 task_time = datetime.fromisoformat(task['timestamp']).strftime('%I:%M %p')
                 task_title = task['title'][:50]

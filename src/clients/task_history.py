@@ -40,7 +40,6 @@ class TaskHistory:
             if not any(t.get('task_id') == task_id for t in history):
                 history.append(task_data)
                 os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-                # Write to temporary file first, then rename for atomic operation
                 temp_file = self.history_file + ".tmp"
                 with open(temp_file, "w") as f:
                     json.dump(history, f, indent=2)
@@ -87,12 +86,11 @@ class TaskHistory:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
             recent_tasks = [t for t in history if datetime.fromisoformat(t['timestamp']) >= cutoff_time]
             
-            summary = {"frontend": [], "backend": []}
+            summary = {"frontend": [], "backend": [], "android": [], "qa": []}
             for task in recent_tasks:
                 stack_type = task.get('stack_type', 'frontend')
                 
-                # For 'mixed' or 'qa' tasks, re-classify based on skills
-                if stack_type in ['qa', 'mixed', 'android', 'other']:
+                if stack_type in ['other']:
                     stack_type = self._reclassify_task_by_skills(task)
                 
                 if stack_type in summary:
@@ -104,28 +102,45 @@ class TaskHistory:
             return None
     
     def _reclassify_task_by_skills(self, task):
-        """Re-classify a task based on its skills when stack_type is ambiguous"""
-        FRONTEND_KEYWORDS = ["react", "next", "nextjs", "figma", "frontend", "design", "ui", "ux", "css", "html", "javascript", "typescript", "vue", "angular"]
-        BACKEND_KEYWORDS = ["django", "python", "fastapi", "backend", "api", "database", "sql", "postgres", "mongodb", "flask", "node", "express"]
+        """Re-classify a task into frontend, backend, android, or qa stacks"""
+        FRONTEND_KEYWORDS = ["react", "next", "nextjs", "figma", "frontend", "design", "ui", "ux", "javascript", "typescript", "vue", "angular"]
+        BACKEND_KEYWORDS = ["django", "python", "fastapi", "backend","flask",]
+        ANDROID_KEYWORDS = ["react_native", "react native", "mobile", "android", "ios", "flutter", "kotlin", "swift"]
+        QA_KEYWORDS = ["qa", "qa_tasks", "quality assurance", "testing", "test", "qa tasks"]
         
         skills = [s.lower() for s in task.get('skills', [])]
-        title_desc = (task.get('title', '') + ' ' + task.get('description', '')).lower()
         
-        # Check for backend keywords in skills and title
-        has_backend = any(kw in skills or kw in title_desc for kw in BACKEND_KEYWORDS)
-        has_frontend = any(kw in skills or kw in title_desc for kw in FRONTEND_KEYWORDS)
+        has_backend = any(kw in skills for kw in BACKEND_KEYWORDS)
+        has_frontend = any(kw in skills for kw in FRONTEND_KEYWORDS)
+        has_android = any(kw in skills for kw in ANDROID_KEYWORDS)
+        has_qa = any(kw in skills for kw in QA_KEYWORDS)
         
-        # If both or neither found, count matches to determine dominant
-        if has_backend and has_frontend:
-            backend_count = sum(1 for kw in BACKEND_KEYWORDS if any(kw in s for s in skills) or kw in title_desc)
-            frontend_count = sum(1 for kw in FRONTEND_KEYWORDS if any(kw in s for s in skills) or kw in title_desc)
-            return "backend" if backend_count >= frontend_count else "frontend"
+        if has_android:
+            return "android"
         
-        # If only backend keywords found, it's backend
         if has_backend:
             return "backend"
         
-        # Default to frontend (includes QA and other tasks without clear indicators)
+        if has_frontend:
+            return "frontend"
+        
+        if has_qa and not has_backend and not has_frontend:
+            return "qa"
+        
+        if has_qa:
+            full_text = (task.get('title', '') + ' ' + task.get('description', '')).lower()
+            
+            has_backend_in_text = any(kw in full_text for kw in BACKEND_KEYWORDS)
+            has_frontend_in_text = any(kw in full_text for kw in FRONTEND_KEYWORDS)
+            
+            if has_backend_in_text:
+                return "backend"
+            
+            if has_frontend_in_text:
+                return "frontend"
+            
+            return "qa"
+        
         return "frontend"
     
     def cleanup_old_tasks(self):

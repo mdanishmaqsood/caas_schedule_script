@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from src.config import SIGNIN_URL, AVAILABLE_TASKS_URL, START_WORK_URL, CREDENTIALS, DEFAULT_HEADERS
 from src.clients.mattermost_client import MattermostClient
 
-# Configure logging for CloudWatch
 logger = logging.getLogger()
 
 class CaaSClient:
@@ -35,7 +34,6 @@ class CaaSClient:
                 self.refresh_token = auth_data['refreshToken']
                 self.user_id = auth_data['userId']
                 
-                # Update headers with auth token
                 self.headers['authorization'] = f'Bearer {self.access_token}'
                 logger.info("Successfully logged in to CaaS")
                 return True
@@ -85,20 +83,15 @@ class CaaSClient:
             return False
 
     def is_react_native_or_mobile_task(self, work):
-        """Check if task is related to React Native, Android, or mobile development"""
+        """Check if task is related to React Native, Android, or mobile development based on skills only"""
         reject_keywords = ["react_native", "react native", "mobile", "android", "ios", "flutter", "kotlin", "swift"]
         
-        text_to_check = (
-            f"{work.get('title', '')} "
-            f"{work.get('description', '')} "
-            f"{' '.join(work.get('skills', []))}"
-        ).lower()
+        skills = [skill.lower() for skill in work.get('skills', [])]
         
-        return any(keyword.lower() in text_to_check for keyword in reject_keywords)
+        return any(keyword.lower() in skills for keyword in reject_keywords)
 
     def should_auto_accept(self, work):
-        """Check if a task should be auto-accepted based on time and keywords"""
-        # Server runs in UTC, so 06:00-12:00 UTC = 11:00-17:00 PKT
+        """Check if a task should be auto-accepted based on time and skills only"""
         current_time = datetime.now(timezone.utc).time()
         start_time = datetime.strptime("06:00", "%H:%M").time()
         end_time = datetime.strptime("12:00", "%H:%M").time()
@@ -107,25 +100,20 @@ class CaaSClient:
             logger.info(f"Outside auto-accept time window. Current time: {current_time}")
             return False
         
-        # Reject React Native and mobile development tasks
         if self.is_react_native_or_mobile_task(work):
-            logger.info("Task rejected: Contains React Native or mobile development keywords")
+            logger.info("Task rejected: Contains React Native or mobile development keywords in skills")
             return False
         
         frontend_keywords = ["react", "next", "next.js", "figma", "frontend", "design"]
         backend_keywords = ["django", "python", "fastapi", "backend"]
         
-        text_to_check = (
-            f"{work.get('title', '')} "
-            f"{work.get('description', '')} "
-            f"{' '.join(work.get('skills', []))}"
-        ).lower()
+        skills = [skill.lower() for skill in work.get('skills', [])]
         
-        has_frontend = any(keyword.lower() in text_to_check for keyword in frontend_keywords)
-        has_backend = any(keyword.lower() in text_to_check for keyword in backend_keywords)
+        has_frontend = any(keyword.lower() in skills for keyword in frontend_keywords)
+        has_backend = any(keyword.lower() in skills for keyword in backend_keywords)
         
         if has_frontend or has_backend:
-            logger.info("Task matches auto-accept criteria (frontend or backend keywords found)")
+            logger.info("Task matches auto-accept criteria (frontend or backend keywords found in skills)")
             return True
         
         logger.info("Task does not match auto-accept criteria")
@@ -140,10 +128,8 @@ class CaaSClient:
         try:
             logger.info("Fetching available tasks...")
             response = requests.get(AVAILABLE_TASKS_URL, headers=self.headers)
-            #response.raise_for_status()
             
             data = response.json()
-            #print(data)
             if data.get('status') == 'ok':
                 logger.info("Successfully retrieved available tasks")
                 
@@ -155,27 +141,22 @@ class CaaSClient:
                     is_already_accepted = self.mattermost.get_accepted_task_status()
                     was_cancelled = self.mattermost.get_cancelled_task_status()
 
-                    # If same task reappears after being accepted, it was manually cancelled
                     if last_task_id == task_id and is_already_accepted:
                         logger.info(f"Task {task_id} was previously accepted but now available again - marking as cancelled")
                         self.mattermost.mark_task_as_cancelled(task_id)
                         return data
 
-                    # Don't auto-accept tasks that were manually cancelled
                     if last_task_id == task_id and was_cancelled:
                         logger.info(f"Task {task_id} was manually cancelled, will not auto-accept again")
                         return data
 
-                    # Always send a notification once per task, regardless of stack or criteria
                     if self.mattermost.has_task_been_notified(task_id):
                         logger.info(f"Task {task_id} already notified, skipping")
                         return data
 
-                    # Send notification regardless of auto-accept criteria
                     logger.info(f"Sending notification for task {task_id}")
                     self.mattermost.send_task_notification(data)
 
-                    # Try to auto-accept if criteria are met
                     if self.should_auto_accept(work):
                         logger.info(f"Task {task_id} qualifies for auto-acceptance")
                         if self.accept_task(task_id):

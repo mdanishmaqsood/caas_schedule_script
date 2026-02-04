@@ -40,13 +40,6 @@ class MattermostClient:
             logger.error(f"Error initializing JSON files: {str(e)}")
 
     def send_message(self, message, attachments=None):
-        """
-        Send a message to Mattermost channel
-
-        Args:
-            message (str): The message text to send
-            attachments (list, optional): List of attachments for rich formatting
-        """
         if not self.webhook_url:
             logger.error("Mattermost webhook URL not configured")
             return False
@@ -86,7 +79,6 @@ class MattermostClient:
                 data = json.loads(content)
                 return data.get("last_task_id")
         except (json.JSONDecodeError, ValueError):
-            # File is corrupted, return None silently
             return None
         except Exception as e:
             logger.error(f"Error reading last task ID: {str(e)}")
@@ -96,11 +88,9 @@ class MattermostClient:
         """Save the last task ID to the storage file"""
         try:
             os.makedirs(os.path.dirname(self.last_task_file), exist_ok=True)
-            # Write to temporary file first, then rename for atomic operation
             temp_file = self.last_task_file + ".tmp"
             with open(temp_file, "w") as f:
                 json.dump({"last_task_id": task_id, "accepted": accepted, "cancelled": cancelled}, f)
-            # Atomic rename
             if os.path.exists(self.last_task_file):
                 os.remove(self.last_task_file)
             os.rename(temp_file, self.last_task_file)
@@ -119,7 +109,6 @@ class MattermostClient:
                 data = json.loads(content)
                 return data.get("accepted", False)
         except (json.JSONDecodeError, ValueError):
-            # File is corrupted, return False silently
             return False
         except Exception as e:
             logger.error(f"Error reading accepted status: {str(e)}")
@@ -137,7 +126,6 @@ class MattermostClient:
                 data = json.loads(content)
                 return data.get("cancelled", False)
         except (json.JSONDecodeError, ValueError):
-            # File is corrupted, return False silently
             return False
         except Exception as e:
             logger.error(f"Error reading cancelled status: {str(e)}")
@@ -192,32 +180,36 @@ class MattermostClient:
             logger.info(f"Task {task_id} marked as accepted and notification sent")
 
     def send_daily_summary(self):
-        """Send daily summary of tasks from last 24 hours"""
+        """Send daily summary of tasks from last 24 hours, then cleanup all tracking files"""
         if not self.should_send_daily_summary():
             logger.info("Daily summary already sent today")
             return False
         
-        summary = self.task_history.get_last_24_hours_summary()
-        if not summary:
-            logger.info("No task history available")
-            return False
-        
-        total_tasks = sum(len(tasks) for tasks in summary.values())
-        if total_tasks == 0:
-            message = "📊 **Daily Task Summary (Last 24 Hours)**\n\n✅ No tasks were received in the last 24 hours.\n\n_All clear!_"
-            if self.send_message(message):
+        try:
+            summary = self.task_history.get_last_24_hours_summary()
+            if not summary:
+                logger.info("No task history available")
+                return False
+            
+            total_tasks = sum(len(tasks) for tasks in summary.values())
+            if total_tasks == 0:
+                message = "📊 **Daily Task Summary (Last 24 Hours)**\n\n✅ No tasks were received in the last 24 hours.\n\n_All clear!_"
+                if self.send_message(message):
+                    self.mark_daily_summary_sent()
+                    logger.info("Daily summary sent: No tasks in last 24 hours")
+                    self._cleanup_json_files_after_summary()
+                    return True
+                return False
+            
+            if self.send_message(format_daily_summary(summary)):
                 self.mark_daily_summary_sent()
-                logger.info("Daily summary sent: No tasks in last 24 hours")
+                logger.info("Daily summary sent successfully")
                 self._cleanup_json_files_after_summary()
                 return True
             return False
-        
-        if self.send_message(format_daily_summary(summary)):
-            self.mark_daily_summary_sent()
-            logger.info("Daily summary sent successfully")
-            self._cleanup_json_files_after_summary()
-            return True
-        return False
+        except Exception as e:
+            logger.error(f"Error sending daily summary: {str(e)}")
+            return False
 
     def should_send_daily_summary(self):
         """Check if daily summary should be sent (once per day)"""
@@ -241,21 +233,23 @@ class MattermostClient:
             logger.error(f"Error marking daily summary as sent: {str(e)}")
 
     def _cleanup_json_files_after_summary(self):
-        """Cleanup all JSON files after daily summary is sent"""
+        """Cleanup all JSON files immediately after daily summary is sent"""
         try:
             os.makedirs("src/data", exist_ok=True)
+            logger.info("Starting JSON files cleanup after daily summary...")
 
-            # Reset last task tracking
+            self.task_history.clear_history()
+            logger.info("✓ Cleared task_history.json - now empty []")
+
             with open(self.last_task_file, "w") as f:
                 json.dump({"last_task_id": None, "accepted": False, "cancelled": False}, f)
+            logger.info("✓ Reset last_task.json to defaults")
 
-            # Clear task history
-            self.task_history.clear_history()
-
-            # Keep last summary date to prevent duplicate summaries
             with open(self.daily_summary_file, "w") as f:
                 json.dump({"last_summary_date": datetime.now(timezone.utc).date().isoformat()}, f)
+            logger.info(f"✓ Updated last_summary_date.json to today's date")
 
-            logger.info("Cleaned up JSON files after daily summary")
+            logger.info("✅ All JSON files cleaned up successfully - ready for new tasks!")
         except Exception as e:
             logger.error(f"Error cleaning JSON files after summary: {str(e)}")
+
