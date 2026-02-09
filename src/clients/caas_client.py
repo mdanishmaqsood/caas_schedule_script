@@ -91,7 +91,13 @@ class CaaSClient:
         return any(keyword.lower() in skills for keyword in reject_keywords)
 
     def should_auto_accept(self, work):
-        """Check if a task should be auto-accepted based on time and skills only"""
+        """Check if a task should be auto-accepted based on time, day of week, and skills only"""
+        # Check if today is weekend (Saturday=5, Sunday=6)
+        current_weekday = datetime.now(timezone.utc).weekday()
+        if current_weekday in [5, 6]:  # Saturday or Sunday
+            logger.info(f"Weekend detected (weekday={current_weekday}). Auto-accept disabled on weekends")
+            return False
+        
         current_time = datetime.now(timezone.utc).time()
         start_time = datetime.strptime("06:00", "%H:%M").time()
         end_time = datetime.strptime("12:00", "%H:%M").time()
