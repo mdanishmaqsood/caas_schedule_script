@@ -154,17 +154,20 @@ class CaaSClient:
                         logger.info(f"Task {task_id} already notified, skipping")
                         return data
 
-                    logger.info(f"Sending notification for task {task_id}")
-                    self.mattermost.send_task_notification(data)
-
-                    if self.should_auto_accept(work):
-                        logger.info(f"Task {task_id} qualifies for auto-acceptance")
+                    # Check if task qualifies for auto-accept BEFORE sending notification
+                    will_auto_accept = self.should_auto_accept(work)
+                    
+                    if will_auto_accept:
+                        logger.info(f"Task {task_id} qualifies for auto-acceptance - sending accepted notification")
+                        self.mattermost.send_task_accepted_notification(data)
+                        
                         if self.accept_task(task_id):
                             logger.info(f"Successfully accepted task {task_id}")
                         else:
                             logger.error("Failed to auto-accept task")
                     else:
-                        logger.info("Task does not qualify for auto-acceptance")
+                        logger.info(f"Sending notification for task {task_id} - manual acceptance required")
+                        self.mattermost.send_task_notification(data)
                     
                     return data
                 
