@@ -110,8 +110,10 @@ class CaaSClient:
             logger.info("Task rejected: Contains React Native or mobile development keywords in skills")
             return False
         
-        frontend_keywords = ["react", "next", "next.js", "figma", "frontend", "design"]
-        backend_keywords = ["django", "python", "fastapi", "backend"]
+        frontend_keywords = ["react", "next", "next.js", "nextjs", "figma", "frontend", "design",
+                             "vue", "angular", "svelte", "tailwind", "vite", "web", "typescript"]
+        backend_keywords = ["django", "python", "fastapi", "backend", "flask", "node", "node.js",
+                           "express", "nestjs", "go", "java", "spring", "php", "laravel", "api"]
         
         skills = [skill.lower() for skill in work.get('skills', [])]
         
