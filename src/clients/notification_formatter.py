@@ -15,7 +15,7 @@ def convert_utc_to_pakistan_time(utc_datetime):
 def format_task_message(work, task_id, is_accepted=False):
     tags = get_tags_for_task(work)
     title = "✅ **Task Auto-Accepted!**" if is_accepted else "🎯 **New Task Available!**"
-    time_note = "\n\n🤖 This task was automatically accepted during business hours (11:00-17:00)" if is_accepted else ""
+    time_note = "\n\n🤖 This task was automatically accepted during business hours (09:00-17:00)" if is_accepted else ""
     
     return (
         f"{tags}\n\n{title}\n\n"

@@ -101,9 +101,9 @@ class CaaSClient:
             logger.info(f"Weekend detected (weekday={current_weekday}). Auto-accept disabled on weekends")
             return False
         
-        # Use Pakistan time for business hours check (11:00-17:00 PKT)
+        # Use Pakistan time for business hours check (9:00 AM - 5:00 PM PKT)
         current_time = datetime.now(PAKISTAN_TZ).time()
-        start_time = datetime.strptime("11:00", "%H:%M").time()
+        start_time = datetime.strptime("09:00", "%H:%M").time()
         end_time = datetime.strptime("17:00", "%H:%M").time()
         
         if not (start_time <= current_time <= end_time):
