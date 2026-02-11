@@ -5,9 +5,12 @@ import json
 import logging
 import requests
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from src.config import SIGNIN_URL, AVAILABLE_TASKS_URL, START_WORK_URL, CREDENTIALS, DEFAULT_HEADERS
 from src.clients.mattermost_client import MattermostClient
+
+# Pakistan timezone is UTC+5
+PAKISTAN_TZ = timezone(timedelta(hours=5))
 
 logger = logging.getLogger()
 
@@ -92,15 +95,16 @@ class CaaSClient:
 
     def should_auto_accept(self, work):
         """Check if a task should be auto-accepted based on time, day of week, and skills only"""
-        # Check if today is weekend (Saturday=5, Sunday=6)
-        current_weekday = datetime.now(timezone.utc).weekday()
+        # Check if today is weekend (Saturday=5, Sunday=6) using Pakistan time
+        current_weekday = datetime.now(PAKISTAN_TZ).weekday()
         if current_weekday in [5, 6]:  # Saturday or Sunday
             logger.info(f"Weekend detected (weekday={current_weekday}). Auto-accept disabled on weekends")
             return False
         
-        current_time = datetime.now(timezone.utc).time()
-        start_time = datetime.strptime("06:00", "%H:%M").time()
-        end_time = datetime.strptime("12:00", "%H:%M").time()
+        # Use Pakistan time for business hours check (11:00-17:00 PKT)
+        current_time = datetime.now(PAKISTAN_TZ).time()
+        start_time = datetime.strptime("11:00", "%H:%M").time()
+        end_time = datetime.strptime("17:00", "%H:%M").time()
         
         if not (start_time <= current_time <= end_time):
             logger.info(f"Outside auto-accept time window. Current time: {current_time}")

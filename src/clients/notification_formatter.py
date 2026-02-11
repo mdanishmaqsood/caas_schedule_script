@@ -1,5 +1,16 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from .task_classifier import get_tags_for_task
+
+# Pakistan timezone is UTC+5
+PAKISTAN_TZ = timezone(timedelta(hours=5))
+
+def convert_utc_to_pakistan_time(utc_datetime):
+    """Convert UTC datetime to Pakistan time (UTC+5)"""
+    if isinstance(utc_datetime, str):
+        utc_datetime = datetime.fromisoformat(utc_datetime)
+    # Convert to Pakistan timezone
+    pakistan_time = utc_datetime.astimezone(PAKISTAN_TZ)
+    return pakistan_time
 
 def format_task_message(work, task_id, is_accepted=False):
     tags = get_tags_for_task(work)
@@ -36,11 +47,17 @@ def format_daily_summary(summary):
             
             message += f"{stack_emoji} **{stack_type.upper()} ({len(tasks)} tasks)**\n"
             for task in tasks:
-                task_time = datetime.fromisoformat(task['timestamp']).strftime('%I:%M %p')
+                # Convert UTC timestamp to Pakistan time (UTC+5)
+                utc_time = datetime.fromisoformat(task['timestamp'])
+                pakistan_time = convert_utc_to_pakistan_time(utc_time)
+                task_time = pakistan_time.strftime('%I:%M %p')
                 task_title = task['title'][:50]
                 message += f"  • [{task_time}] Task #{task['task_id']}: {task_title}...\n"
             message += "\n"
     
-    message += f"_Generated on {datetime.now(timezone.utc).strftime('%Y-%m-%d at %I:%M %p')} UTC_"
+    # Show generated time in Pakistan timezone
+    now_utc = datetime.now(timezone.utc)
+    now_pakistan = convert_utc_to_pakistan_time(now_utc)
+    message += f"_Generated on {now_pakistan.strftime('%Y-%m-%d at %I:%M %p')} PKT_"
     
     return message

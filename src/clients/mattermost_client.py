@@ -6,10 +6,13 @@ import json
 import logging
 import requests
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from src.config import MATTERMOST_CONFIG
 from .task_history import TaskHistory
 from .notification_formatter import format_task_message, format_daily_summary
+
+# Pakistan timezone is UTC+5
+PAKISTAN_TZ = timezone(timedelta(hours=5))
 
 logger = logging.getLogger()
 
@@ -212,9 +215,9 @@ class MattermostClient:
             return False
 
     def should_send_daily_summary(self):
-        """Check if daily summary should be sent (once per day)"""
+        """Check if daily summary should be sent (once per day) using Pakistan time"""
         try:
-            today = datetime.now(timezone.utc).date().isoformat()
+            today = datetime.now(PAKISTAN_TZ).date().isoformat()
             if os.path.exists(self.daily_summary_file):
                 with open(self.daily_summary_file, "r") as f:
                     return json.load(f).get('last_summary_date') != today
@@ -224,11 +227,11 @@ class MattermostClient:
             return False
 
     def mark_daily_summary_sent(self):
-        """Mark that daily summary has been sent today"""
+        """Mark that daily summary has been sent today using Pakistan date"""
         try:
             os.makedirs(os.path.dirname(self.daily_summary_file), exist_ok=True)
             with open(self.daily_summary_file, "w") as f:
-                json.dump({"last_summary_date": datetime.now(timezone.utc).date().isoformat()}, f)
+                json.dump({"last_summary_date": datetime.now(PAKISTAN_TZ).date().isoformat()}, f)
         except Exception as e:
             logger.error(f"Error marking daily summary as sent: {str(e)}")
 
@@ -246,8 +249,8 @@ class MattermostClient:
             logger.info("✓ Reset last_task.json to defaults")
 
             with open(self.daily_summary_file, "w") as f:
-                json.dump({"last_summary_date": datetime.now(timezone.utc).date().isoformat()}, f)
-            logger.info(f"✓ Updated last_summary_date.json to today's date")
+                json.dump({"last_summary_date": datetime.now(PAKISTAN_TZ).date().isoformat()}, f)
+            logger.info(f"✓ Updated last_summary_date.json to today's Pakistan date")
 
             logger.info("✅ All JSON files cleaned up successfully - ready for new tasks!")
         except Exception as e:

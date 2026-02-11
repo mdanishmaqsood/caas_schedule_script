@@ -6,8 +6,11 @@ This script can be run directly or via cron job
 
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from src.clients.caas_client import CaaSClient
+
+# Pakistan timezone is UTC+5
+PAKISTAN_TZ = timezone(timedelta(hours=5))
 
 # Configure logging
 logging.basicConfig(
@@ -43,9 +46,11 @@ def main():
         else:
             logger.info("No tasks available")
 
-        current_hour = datetime.now(timezone.utc).hour
-        if current_hour == 13:
-            logger.info("Attempting to send daily summary...")
+        # Check Pakistan time (UTC+5) for daily summary
+        current_hour_pakistan = datetime.now(PAKISTAN_TZ).hour
+        # Send at 6 PM Pakistan time (which is 1 PM UTC)
+        if current_hour_pakistan == 18:
+            logger.info("Attempting to send daily summary at 6 PM Pakistan time...")
             client.mattermost.send_daily_summary()
             
     except Exception as e:
