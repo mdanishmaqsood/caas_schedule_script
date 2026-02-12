@@ -22,6 +22,7 @@ class MattermostClient:
         self.webhook_url = MATTERMOST_CONFIG["webhook_url"]
         self.last_task_file = "src/data/last_task.json"
         self.daily_summary_file = "src/data/last_summary_date.json"
+        self.daily_cleanup_file = "src/data/last_cleanup_date.json"
         self.task_history = TaskHistory()
         self._initialize_json_files()
     
@@ -32,7 +33,8 @@ class MattermostClient:
             files = {
                 self.last_task_file: {"last_task_id": None, "accepted": False, "cancelled": False},
                 self.task_history.history_file: [],
-                self.daily_summary_file: {"last_summary_date": None}
+                self.daily_summary_file: {"last_summary_date": None},
+                self.daily_cleanup_file: {"last_cleanup_date": None}
             }
             for path, default_data in files.items():
                 if not os.path.exists(path):
@@ -183,7 +185,7 @@ class MattermostClient:
             logger.info(f"Task {task_id} marked as accepted and notification sent")
 
     def send_daily_summary(self):
-        """Send daily summary of tasks from last 24 hours, then cleanup all tracking files"""
+        """Send daily summary of tasks from last 24 hours"""
         if not self.should_send_daily_summary():
             logger.info("Daily summary already sent today")
             return False
@@ -200,14 +202,12 @@ class MattermostClient:
                 if self.send_message(message):
                     self.mark_daily_summary_sent()
                     logger.info("Daily summary sent: No tasks in last 24 hours")
-                    self._cleanup_json_files_after_summary()
                     return True
                 return False
             
             if self.send_message(format_daily_summary(summary)):
                 self.mark_daily_summary_sent()
                 logger.info("Daily summary sent successfully")
-                self._cleanup_json_files_after_summary()
                 return True
             return False
         except Exception as e:
@@ -235,24 +235,54 @@ class MattermostClient:
         except Exception as e:
             logger.error(f"Error marking daily summary as sent: {str(e)}")
 
-    def _cleanup_json_files_after_summary(self):
-        """Cleanup all JSON files immediately after daily summary is sent"""
+    def should_cleanup_end_of_day(self):
+        """Check if end-of-day cleanup should be performed (once per day) using Pakistan time"""
+        try:
+            today = datetime.now(PAKISTAN_TZ).date().isoformat()
+            if os.path.exists(self.daily_cleanup_file):
+                with open(self.daily_cleanup_file, "r") as f:
+                    content = f.read().strip()
+                    if not content:
+                        return True
+                    return json.loads(content).get('last_cleanup_date') != today
+            return True
+        except (json.JSONDecodeError, ValueError):
+            logger.warning("Cleanup tracking file corrupted or empty, allowing cleanup")
+            return True
+        except Exception as e:
+            logger.error(f"Error checking cleanup status: {str(e)}")
+            return False
+
+    def mark_daily_cleanup_done(self):
+        """Mark that end-of-day cleanup has been performed today using Pakistan date"""
+        try:
+            os.makedirs(os.path.dirname(self.daily_cleanup_file), exist_ok=True)
+            with open(self.daily_cleanup_file, "w") as f:
+                json.dump({"last_cleanup_date": datetime.now(PAKISTAN_TZ).date().isoformat()}, f)
+        except Exception as e:
+            logger.error(f"Error marking cleanup as done: {str(e)}")
+
+    def cleanup_json_files_end_of_day(self):
+        """Cleanup all JSON files at end of day (11:59 PM Pakistan time)"""
         try:
             os.makedirs("src/data", exist_ok=True)
-            logger.info("Starting JSON files cleanup after daily summary...")
+            logger.info("Starting JSON files cleanup at end of day...")
 
             self.task_history.clear_history()
-            logger.info("✓ Cleared task_history.json - now empty []")
+            logger.info("Cleared task_history.json - now empty []")
 
             with open(self.last_task_file, "w") as f:
                 json.dump({"last_task_id": None, "accepted": False, "cancelled": False}, f)
-            logger.info("✓ Reset last_task.json to defaults")
+            logger.info("Reset last_task.json to defaults")
 
             with open(self.daily_summary_file, "w") as f:
                 json.dump({"last_summary_date": datetime.now(PAKISTAN_TZ).date().isoformat()}, f)
-            logger.info(f"✓ Updated last_summary_date.json to today's Pakistan date")
+            logger.info("Updated last_summary_date.json to today's Pakistan date")
 
-            logger.info("✅ All JSON files cleaned up successfully - ready for new tasks!")
+            self.mark_daily_cleanup_done()
+            logger.info("Recorded end-of-day cleanup completion")
+
+            logger.info("All JSON files cleaned up successfully - ready for new tasks!")
         except Exception as e:
-            logger.error(f"Error cleaning JSON files after summary: {str(e)}")
+            logger.error(f"Error cleaning JSON files at end of day: {str(e)}")
 
