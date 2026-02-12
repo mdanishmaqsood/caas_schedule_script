@@ -143,8 +143,8 @@ class TaskHistory:
         
         return "frontend"
     
-    def cleanup_old_tasks(self):
-        """Delete tasks older than 24 hours from history"""
+    def cleanup_old_tasks(self, days=7):
+        """Delete tasks older than the given number of days from history"""
         try:
             if not os.path.exists(self.history_file):
                 return
@@ -155,14 +155,18 @@ class TaskHistory:
                     return
                 history = json.loads(content)
             
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
             recent_tasks = [t for t in history if datetime.fromisoformat(t['timestamp']) >= cutoff_time]
             deleted_count = len(history) - len(recent_tasks)
             
             with open(self.history_file, "w") as f:
                 json.dump(recent_tasks, f, indent=2)
             
-            logger.info(f"Cleaned up {deleted_count} tasks" if deleted_count > 0 else "No old tasks to clean up")
+            logger.info(
+                f"Cleaned up {deleted_count} tasks older than {days} days"
+                if deleted_count > 0
+                else f"No tasks older than {days} days to clean up"
+            )
         except Exception as e:
             logger.error(f"Error cleaning up old tasks: {str(e)}")
 

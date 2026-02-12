@@ -48,17 +48,16 @@ def main():
 
         # Check Pakistan time (UTC+5) for daily summary
         now_pakistan = datetime.now(PAKISTAN_TZ)
-        current_hour_pakistan = now_pakistan.hour
-        # Send at 6 PM Pakistan time (which is 1 PM UTC)
-        if current_hour_pakistan == 18:
-            logger.info("Attempting to send daily summary at 6 PM Pakistan time...")
+        # Send at 6:00 PM Pakistan time
+        if now_pakistan.hour == 18 and now_pakistan.minute == 0:
+            logger.info("Attempting to send daily summary at 6:00 PM Pakistan time...")
             client.mattermost.send_daily_summary()
 
-        # End-of-day cleanup at 11:59 PM Pakistan time
-        if now_pakistan.hour == 23 and now_pakistan.minute == 59:
-            if client.mattermost.should_cleanup_end_of_day():
-                logger.info("Attempting end-of-day cleanup at 11:59 PM Pakistan time...")
-                client.mattermost.cleanup_json_files_end_of_day()
+        # Weekly cleanup on Sunday at 11:00 AM Pakistan time
+        if now_pakistan.weekday() == 6 and now_pakistan.hour == 11 and now_pakistan.minute == 0:
+            if client.mattermost.should_cleanup_weekly():
+                logger.info("Attempting weekly cleanup on Sunday at 11:00 AM Pakistan time...")
+                client.mattermost.cleanup_json_files_weekly()
             
     except Exception as e:
         logger.info(f"Error in main: {str(e)}")
