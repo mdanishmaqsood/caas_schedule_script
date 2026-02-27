@@ -5,12 +5,20 @@ import json
 import logging
 import requests
 import time
-from datetime import datetime, timezone, timedelta
-from src.config import SIGNIN_URL, AVAILABLE_TASKS_URL, START_WORK_URL, CREDENTIALS, DEFAULT_HEADERS
-from src.clients.mattermost_client import MattermostClient
+from datetime import datetime
 
-# Pakistan timezone is UTC+5
-PAKISTAN_TZ = timezone(timedelta(hours=5))
+from ..config import (
+    AUTO_ACCEPT_CONFIG,
+    AVAILABLE_TASKS_URL,
+    CREDENTIALS,
+    DEFAULT_HEADERS,
+    SIGNIN_URL,
+    START_WORK_URL,
+    get_auto_accept_window,
+)
+from ..utils.timezone_utils import now_pakistan
+from .mattermost_client import MattermostClient
+from .task_keywords import ANDROID_KEYWORDS, BACKEND_KEYWORDS, FRONTEND_KEYWORDS
 
 logger = logging.getLogger()
 
@@ -87,47 +95,43 @@ class CaaSClient:
 
     def is_react_native_or_mobile_task(self, work):
         """Check if task is related to React Native, Android, or mobile development based on skills only"""
-        reject_keywords = ["react_native", "react native", "mobile", "android", "ios", "flutter", "kotlin", "swift"]
-        
         skills = [skill.lower() for skill in work.get('skills', [])]
-        
-        return any(keyword.lower() in skills for keyword in reject_keywords)
+
+        return any(keyword.lower() in skills for keyword in ANDROID_KEYWORDS)
 
     def should_auto_accept(self, work):
         """Check if a task should be auto-accepted based on time, day of week, and skills only"""
-        # Check if today is weekend (Saturday=5, Sunday=6) using Pakistan time
-        current_weekday = datetime.now(PAKISTAN_TZ).weekday()
-        if current_weekday in [5, 6]:  # Saturday or Sunday
-            logger.info(f"Weekend detected (weekday={current_weekday}). Auto-accept disabled on weekends")
+        current_datetime = now_pakistan()
+        current_weekday = current_datetime.weekday()
+        if current_weekday not in AUTO_ACCEPT_CONFIG["enabled_days"]:
+            logger.info(f"Auto-accept disabled for weekday={current_weekday} via configuration")
             return False
-        
-        # Use Pakistan time for business hours check (9:00 AM - 5:00 PM PKT)
-        current_time = datetime.now(PAKISTAN_TZ).time()
-        start_time = datetime.strptime("09:00", "%H:%M").time()
-        end_time = datetime.strptime("17:00", "%H:%M").time()
-        
+
+        current_time = current_datetime.time()
+        start_time, end_time = get_auto_accept_window(current_weekday)
+
         if not (start_time <= current_time <= end_time):
-            logger.info(f"Outside auto-accept time window. Current time: {current_time}")
+            logger.info(
+                "Outside auto-accept time window. Current time: %s, window: %s-%s",
+                current_time,
+                start_time,
+                end_time,
+            )
             return False
-        
+
         if self.is_react_native_or_mobile_task(work):
             logger.info("Task rejected: Contains React Native or mobile development keywords in skills")
             return False
-        
-        frontend_keywords = ["react", "next", "next.js", "nextjs", "figma", "frontend", "design",
-                             "vue", "angular", "svelte", "tailwind", "vite", "web", "typescript"]
-        backend_keywords = ["django", "python", "fastapi", "backend", "flask", "node", "node.js",
-                           "express", "nestjs", "go", "java", "spring", "php", "laravel", "api"]
-        
+
         skills = [skill.lower() for skill in work.get('skills', [])]
-        
-        has_frontend = any(keyword.lower() in skills for keyword in frontend_keywords)
-        has_backend = any(keyword.lower() in skills for keyword in backend_keywords)
-        
+
+        has_frontend = any(keyword.lower() in skills for keyword in FRONTEND_KEYWORDS)
+        has_backend = any(keyword.lower() in skills for keyword in BACKEND_KEYWORDS)
+
         if has_frontend or has_backend:
             logger.info("Task matches auto-accept criteria (frontend or backend keywords found in skills)")
             return True
-        
+
         logger.info("Task does not match auto-accept criteria")
         return False
 

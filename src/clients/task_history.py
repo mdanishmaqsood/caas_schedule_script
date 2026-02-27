@@ -103,45 +103,7 @@ class TaskHistory:
     
     def _reclassify_task_by_skills(self, task):
         """Re-classify a task into frontend, backend, android, or qa stacks"""
-        FRONTEND_KEYWORDS = ["react", "next", "nextjs", "figma", "frontend", "design", "ui", "ux", "javascript", "typescript", "vue", "angular"]
-        BACKEND_KEYWORDS = ["django", "python", "fastapi", "backend","flask",]
-        ANDROID_KEYWORDS = ["react_native", "react native", "mobile", "android", "ios", "flutter", "kotlin", "swift"]
-        QA_KEYWORDS = ["qa", "qa_tasks", "quality assurance", "testing", "test", "qa tasks"]
-        
-        skills = [s.lower() for s in task.get('skills', [])]
-        
-        has_backend = any(kw in skills for kw in BACKEND_KEYWORDS)
-        has_frontend = any(kw in skills for kw in FRONTEND_KEYWORDS)
-        has_android = any(kw in skills for kw in ANDROID_KEYWORDS)
-        has_qa = any(kw in skills for kw in QA_KEYWORDS)
-        
-        if has_android:
-            return "android"
-        
-        if has_backend:
-            return "backend"
-        
-        if has_frontend:
-            return "frontend"
-        
-        if has_qa and not has_backend and not has_frontend:
-            return "qa"
-        
-        if has_qa:
-            full_text = (task.get('title', '') + ' ' + task.get('description', '')).lower()
-            
-            has_backend_in_text = any(kw in full_text for kw in BACKEND_KEYWORDS)
-            has_frontend_in_text = any(kw in full_text for kw in FRONTEND_KEYWORDS)
-            
-            if has_backend_in_text:
-                return "backend"
-            
-            if has_frontend_in_text:
-                return "frontend"
-            
-            return "qa"
-        
-        return "frontend"
+        return get_task_stack_type(task)
     
     def cleanup_old_tasks(self, days=7):
         """Delete tasks older than the given number of days from history"""

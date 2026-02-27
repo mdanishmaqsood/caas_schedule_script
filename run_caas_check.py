@@ -6,11 +6,9 @@ This script can be run directly or via cron job
 
 import logging
 import sys
-from datetime import datetime, timezone, timedelta
-from src.clients.caas_client import CaaSClient
 
-# Pakistan timezone is UTC+5
-PAKISTAN_TZ = timezone(timedelta(hours=5))
+from src.clients.caas_client import CaaSClient
+from src.utils.timezone_utils import now_pakistan
 
 # Configure logging
 logging.basicConfig(
@@ -47,17 +45,18 @@ def main():
             logger.info("No tasks available")
 
         # Check Pakistan time (UTC+5) for daily summary
-        now_pakistan = datetime.now(PAKISTAN_TZ)
-        # Send at 6:00 PM Pakistan time
-        if now_pakistan.hour == 18 and now_pakistan.minute == 0:
-            logger.info("Attempting to send daily summary at 6:00 PM Pakistan time...")
+        pakistan_now = now_pakistan()
+        current_hour_pakistan = pakistan_now.hour
+        # Send at 6 PM Pakistan time (which is 1 PM UTC)
+        if current_hour_pakistan == 18:
+            logger.info("Attempting to send daily summary at 6 PM Pakistan time...")
             client.mattermost.send_daily_summary()
 
-        # Weekly cleanup on Sunday at 11:00 AM Pakistan time
-        if now_pakistan.weekday() == 6 and now_pakistan.hour == 11 and now_pakistan.minute == 0:
-            if client.mattermost.should_cleanup_weekly():
-                logger.info("Attempting weekly cleanup on Sunday at 11:00 AM Pakistan time...")
-                client.mattermost.cleanup_json_files_weekly()
+        # End-of-day cleanup at 11:59 PM Pakistan time
+        if pakistan_now.hour == 23 and pakistan_now.minute == 59:
+            if client.mattermost.should_cleanup_end_of_day():
+                logger.info("Attempting end-of-day cleanup at 11:59 PM Pakistan time...")
+                client.mattermost.cleanup_json_files_end_of_day()
             
     except Exception as e:
         logger.info(f"Error in main: {str(e)}")

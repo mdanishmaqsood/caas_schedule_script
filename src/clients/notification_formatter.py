@@ -1,21 +1,12 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
+
+from ..utils.timezone_utils import convert_utc_to_pakistan_time
 from .task_classifier import get_tags_for_task
-
-# Pakistan timezone is UTC+5
-PAKISTAN_TZ = timezone(timedelta(hours=5))
-
-def convert_utc_to_pakistan_time(utc_datetime):
-    """Convert UTC datetime to Pakistan time (UTC+5)"""
-    if isinstance(utc_datetime, str):
-        utc_datetime = datetime.fromisoformat(utc_datetime)
-    # Convert to Pakistan timezone
-    pakistan_time = utc_datetime.astimezone(PAKISTAN_TZ)
-    return pakistan_time
 
 def format_task_message(work, task_id, is_accepted=False):
     tags = get_tags_for_task(work)
     title = "✅ **Task Auto-Accepted!**" if is_accepted else "🎯 **New Task Available!**"
-    time_note = "\n\n🤖 This task was automatically accepted during business hours (09:00-17:00)" if is_accepted else ""
+    time_note = "\n\n🤖 This task was automatically accepted during configured auto-accept hours" if is_accepted else ""
     
     return (
         f"{tags}\n\n{title}\n\n"
