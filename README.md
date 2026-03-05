@@ -11,7 +11,9 @@ Create a `.env` file (or copy from `.env.example`) and set these values:
 
 ## Auto-accept schedule (PKT)
 
-Auto-accept time windows are configurable in `.env`:
+- `AUTO_ACCEPT_ENABLED` — set to `true` to auto-accept eligible tasks, `false` to never auto-accept (notifications and all other behavior stay the same). Default: `true`.
+
+Time windows are configurable in `.env`:
 
 - `AUTO_ACCEPT_ENABLED_DAYS` (comma-separated weekday names)
 - `AUTO_ACCEPT_EXTENDED_DAYS` (comma-separated weekday names)

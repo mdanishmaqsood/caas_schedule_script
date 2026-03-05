@@ -65,6 +65,17 @@ def _parse_days(value, fallback):
     return {WEEKDAY_TO_INDEX[day.strip().lower()] for day in fallback.split(",") if day.strip().lower() in WEEKDAY_TO_INDEX}
 
 
+def _parse_bool(value, fallback=True):
+    """Parse env value to bool: true/1/yes (case-insensitive) -> True; false/0/no -> False; else fallback."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return fallback
+    return str(value).strip().lower() in ("true", "1", "yes")
+
+
+# Master switch: when False, tasks are never auto-accepted; all other behavior unchanged
+AUTO_ACCEPT_ENABLED = _parse_bool(os.getenv("AUTO_ACCEPT_ENABLED"), True)
+
+
 AUTO_ACCEPT_CONFIG = {
     "enabled_days": _parse_days(
         os.getenv("AUTO_ACCEPT_ENABLED_DAYS"),

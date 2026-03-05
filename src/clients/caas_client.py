@@ -9,6 +9,7 @@ from datetime import datetime
 
 from ..config import (
     AUTO_ACCEPT_CONFIG,
+    AUTO_ACCEPT_ENABLED,
     AVAILABLE_TASKS_URL,
     CREDENTIALS,
     DEFAULT_HEADERS,
@@ -101,6 +102,10 @@ class CaaSClient:
 
     def should_auto_accept(self, work):
         """Check if a task should be auto-accepted based on time, day of week, and skills only"""
+        if not AUTO_ACCEPT_ENABLED:
+            logger.info("Auto-accept disabled by configuration (AUTO_ACCEPT_ENABLED=false)")
+            return False
+
         current_datetime = now_pakistan()
         current_weekday = current_datetime.weekday()
         if current_weekday not in AUTO_ACCEPT_CONFIG["enabled_days"]:
